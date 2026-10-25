@@ -64,6 +64,16 @@ By default, the Detail Stick refuses to edit these block state properties:
 The list is matched by property **name**, case-insensitively, so blocking `candles` automatically
 covers every candle colour.
 
+### Blocked namespaces
+
+Some modded blocks can be duplicated or broken by editing their block states directly — for example
+[Copycats+](https://modrinth.com/mod/copycats) copycat blocks (`copycats` namespace) store their
+disguise/contents in block states. For these, blocking individual properties isn't enough, so the
+Detail Stick can be told to **ignore an entire mod namespace**. On such blocks the stick does
+nothing and leaves the block's own right-click behaviour intact.
+
+The default list contains a single example entry, `copycats`, which you can remove or extend.
+
 ## Configuration
 
 Server config lives at `config/detailstick-server.toml` and is generated on first launch.
@@ -71,6 +81,9 @@ Server config lives at `config/detailstick-server.toml` and is generated on firs
 ```toml
 # Block state property names the Detail Stick is NOT allowed to edit.
 blockedProperties = ["eggs", "pickles", "candles", "layers", "waterlogged"]
+
+# Mod namespaces whose blocks the Detail Stick will NOT operate on at all.
+blockedNamespaces = ["copycats"]
 
 # If true, only operators (permission level 2+) can edit block states with the stick.
 # If false, any player holding it can edit block states.
@@ -80,6 +93,8 @@ requirePermission = true
 
 - **`blockedProperties`** — add or remove property names to adjust what the stick may edit. Add a
   property name here to block it; remove one to allow editing it again.
+- **`blockedNamespaces`** — add a mod namespace (e.g. `copycats`) to make the stick skip every block
+  from that mod. Remove the default entry if you want the stick to work on `copycats` blocks.
 - **`requirePermission`** — set to `false` to let non-operator players use the stick to edit blocks.
 
 > **Note:** config changes require a server restart. Because this is a `SERVER`-type config, editing

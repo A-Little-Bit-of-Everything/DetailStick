@@ -3,7 +3,9 @@ package net.notaglitch.detailstick;
 import com.mojang.logging.LogUtils;
 import net.minecraft.core.Holder;
 import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.player.Player;
@@ -94,12 +96,13 @@ public class DetailStick {
                 return;
             }
 
-            // Take over the interaction so our edit is the only thing that happens (prevents
-            // double-handling with vanilla, and works regardless of game mode).
-            event.setCanceled(true);
-            event.setCancellationResult(InteractionResult.SUCCESS);
-
-            handle(event.getEntity(), event.getLevel(), event.getPos(), stack, true);
+            // Only take over the interaction if we actually edited the block. For blocks we won't
+            // touch (e.g. a blocked namespace), leave the event alone so the block's own right-click
+            // behaviour still works.
+            if (handle(event.getEntity(), event.getLevel(), event.getPos(), stack, true)) {
+                event.setCanceled(true);
+                event.setCancellationResult(InteractionResult.SUCCESS);
+            }
         }
 
         /** Left-click: select the next editable property. */
@@ -117,10 +120,10 @@ public class DetailStick {
                 return;
             }
 
-            // Prevent the block from being mined while selecting.
-            event.setCanceled(true);
-
-            handle(event.getEntity(), event.getLevel(), event.getPos(), stack, false);
+            // Prevent the block from being mined only if we actually handled the selection.
+            if (handle(event.getEntity(), event.getLevel(), event.getPos(), stack, false)) {
+                event.setCanceled(true);
+            }
         }
 
         private static boolean hasPermission(Player player) {
@@ -132,15 +135,26 @@ public class DetailStick {
 
         /**
          * Core debug-stick logic, mirroring vanilla but (a) running server-side regardless of game
-         * mode and (b) skipping any dupe-enabling property.
+         * mode and (b) skipping any dupe-enabling property or blocked-namespace block.
          *
          * @param setValue {@code true} = cycle the selected property's value (right-click);
          *                 {@code false} = select the next property (left-click).
+         * @return {@code true} if the Detail Stick handled the interaction (and the caller should
+         *         cancel the vanilla event), {@code false} if the block was left untouched.
          */
-        private static void handle(Player player, Level level, net.minecraft.core.BlockPos pos,
-                                   ItemStack stack, boolean setValue) {
+        private static boolean handle(Player player, Level level, net.minecraft.core.BlockPos pos,
+                                      ItemStack stack, boolean setValue) {
             BlockState state = level.getBlockState(pos);
             Holder<Block> blockHolder = state.getBlockHolder();
+
+            // Refuse to operate on blocks from a blocked namespace (e.g. Copycats+ copycat blocks,
+            // which can be duped or broken via block-state edits). We do NOT consume the interaction
+            // so the block's own behaviour (and vanilla's inert debug stick) is left untouched.
+            ResourceLocation blockId = BuiltInRegistries.BLOCK.getKey(state.getBlock());
+            if (Config.isBlockedNamespace(blockId.getNamespace())) {
+                message(player, "The Detail Stick cannot edit " + blockId.getNamespace() + " blocks");
+                return false;
+            }
 
             // Properties the Detail Stick is allowed to touch (blocked = treated as nonexistent).
             List<Property<?>> editable = new ArrayList<>();
@@ -152,7 +166,7 @@ public class DetailStick {
 
             if (editable.isEmpty()) {
                 message(player, "No editable properties on " + blockName(state));
-                return;
+                return true;
             }
 
             DebugStickState debugState = stack.get(DataComponents.DEBUG_STICK_STATE);
@@ -177,6 +191,8 @@ public class DetailStick {
                 stack.set(DataComponents.DEBUG_STICK_STATE, debugState.withProperty(blockHolder, next));
                 message(player, "selected \"" + next.getName() + "\" (" + getValueName(state, next) + ")");
             }
+
+            return true;
         }
 
         private static <T extends Comparable<T>> BlockState cycleState(BlockState state, Property<T> property, boolean backwards) {

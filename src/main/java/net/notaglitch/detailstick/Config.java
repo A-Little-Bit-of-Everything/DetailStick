@@ -50,6 +50,25 @@ public class Config {
                     "Property names are matched case-insensitively.")
             .defineListAllowEmpty("blockedProperties", DEFAULT_BLOCKED_PROPERTIES, Config::validatePropertyName);
 
+    /**
+     * The default set of mod namespaces whose blocks the Detail Stick refuses to touch entirely.
+     * Some modded blocks (notably Copycats+ copycat blocks in the {@code copycats} namespace) store
+     * their appearance/contents in block states that can be duplicated or corrupted by editing them
+     * with a debug stick, so the safest option is to ignore those blocks completely.
+     */
+    private static final List<String> DEFAULT_BLOCKED_NAMESPACES = List.of(
+            "copycats"
+    );
+
+    private static final ModConfigSpec.ConfigValue<List<? extends String>> BLOCKED_NAMESPACES = BUILDER
+            .comment(
+                    "Mod namespaces whose blocks the Detail Stick will NOT operate on at all.",
+                    "Any block whose registry id starts with '<namespace>:' is skipped entirely -",
+                    "no property can be selected or changed on it. Use this for mods whose blocks",
+                    "can be duped or broken via block state edits (e.g. Copycats+ 'copycats').",
+                    "Namespaces are matched case-insensitively.")
+            .defineListAllowEmpty("blockedNamespaces", DEFAULT_BLOCKED_NAMESPACES, Config::validateNamespace);
+
     private static final ModConfigSpec.BooleanValue REQUIRE_PERMISSION = BUILDER
             .comment(
                     "If true, only operators (permission level 2 or higher) can edit block states",
@@ -64,9 +83,18 @@ public class Config {
             .map(s -> s.toLowerCase(Locale.ROOT))
             .collect(Collectors.toSet());
 
+    /** Lower-cased set of blocked mod namespaces, refreshed on config load. */
+    public static Set<String> blockedNamespaces = DEFAULT_BLOCKED_NAMESPACES.stream()
+            .map(s -> s.toLowerCase(Locale.ROOT))
+            .collect(Collectors.toSet());
+
     public static boolean requirePermission = true;
 
     private static boolean validatePropertyName(final Object obj) {
+        return obj instanceof String s && !s.isBlank();
+    }
+
+    private static boolean validateNamespace(final Object obj) {
         return obj instanceof String s && !s.isBlank();
     }
 
@@ -77,9 +105,20 @@ public class Config {
         return propertyName != null && blockedProperties.contains(propertyName.toLowerCase(Locale.ROOT));
     }
 
+    /**
+     * @return {@code true} if the Detail Stick is forbidden from operating on blocks from the given
+     *         mod namespace.
+     */
+    public static boolean isBlockedNamespace(final String namespace) {
+        return namespace != null && blockedNamespaces.contains(namespace.toLowerCase(Locale.ROOT));
+    }
+
     @SubscribeEvent
     static void onLoad(final ModConfigEvent event) {
         blockedProperties = BLOCKED_PROPERTIES.get().stream()
+                .map(s -> s.toLowerCase(Locale.ROOT))
+                .collect(Collectors.toSet());
+        blockedNamespaces = BLOCKED_NAMESPACES.get().stream()
                 .map(s -> s.toLowerCase(Locale.ROOT))
                 .collect(Collectors.toSet());
         requirePermission = REQUIRE_PERMISSION.get();
