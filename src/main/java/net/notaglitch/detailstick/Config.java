@@ -115,6 +115,9 @@ public class Config {
 
     @SubscribeEvent
     static void onLoad(final ModConfigEvent event) {
+        if (event instanceof ModConfigEvent.Unloading) {
+            return;
+        }
         blockedProperties = BLOCKED_PROPERTIES.get().stream()
                 .map(s -> s.toLowerCase(Locale.ROOT))
                 .collect(Collectors.toSet());
